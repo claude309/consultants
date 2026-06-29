@@ -1,0 +1,10 @@
+Project,Category,Consultant,Recommended by,Proposal Received,Meeting Aligned,LOI Finalized,Finalize
+CP-Atelier,Prinicpal architect,ACPL,Directory,TRUE,TRUE,TRUE,TRUE
+Dharampur,Prinicpal architect,Bentel,Directory,FALSE,FALSE,FALSE,TRUE
+HGP,Lighting Consultant,Lightbook,Directory,TRUE,TRUE,TRUE,TRUE
+HGP,Lighting Consultant,Lucent,Directory,TRUE,TRUE,TRUE,TRUE
+HGP,Lighting Consultant,GA Lighting,Directory,TRUE,TRUE,TRUE,TRUE
+CP-Atelier,Co-ordination Architect,Bentel,Directory,FALSE,FALSE,FALSE,TRUE
+CP-Atelier,Landscaping Consultant,Cooper Hills,Directory,FALSE,FALSE,FALSE,FALSE
+HGP,Landscaping Consultant,Cooper Hills,Directory,FALSE,FALSE,FALSE,FALSE
+HGP,Prinicpal architect,ZAFAR CH,Directory,FALSE,FALSE,FALSE,FALSE
