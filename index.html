@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Homeland Consultant Dashboard</title>
+<style>
+:root{ color-scheme: light;
+  --navy:#1f3864; --blue:#2e5496; --blue2:#4472c4; --ink:#1c2430; --muted:#69707d;
+  --line:#e3e8ef; --bg:#f4f6fa; --card:#ffffff; --green:#2e7d4f; --greenbg:#e8f5ee;
+  --amber:#b5790a; --amberbg:#fdf3df; --redbg:#fdecec; --red:#b03636; --chip:#eef2f8;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding:18px 20px 60px}
+header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+h1{font-size:20px;margin:0 0 2px;color:var(--navy);letter-spacing:.2px}
+.sub{color:var(--muted);font-size:12.5px}
+.updated{font-size:11.5px;color:var(--muted);text-align:right;white-space:nowrap}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:6px 0 16px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+.kpi .n{font-size:22px;font-weight:700;color:var(--navy);line-height:1}
+.kpi .l{font-size:11px;color:var(--muted);margin-top:5px;text-transform:uppercase;letter-spacing:.4px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:9px 15px;cursor:pointer;font-weight:600;color:var(--muted);border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;font-size:13px}
+.tab.active{color:var(--navy);background:var(--card);border-color:var(--line);position:relative;top:1px}
+.panel{display:none}.panel.active{display:block}
+.grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:12px}
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:14px;border-top:3px solid var(--blue)}
+.pcard h3{margin:0 0 10px;font-size:14.5px;color:var(--navy)}
+.funnel{display:flex;gap:7px}
+.stage{flex:1;text-align:center;background:var(--bg);border-radius:8px;padding:8px 4px}
+.stage .v{font-size:19px;font-weight:700;color:var(--ink)}
+.stage.s1 .v{color:var(--blue2)} .stage.s2 .v{color:var(--amber)} .stage.s3 .v{color:var(--green)}
+.stage .k{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-top:2px}
+.cov{margin-top:10px;font-size:12px;color:var(--muted)}
+.cov b{color:var(--ink)}
+.bar{height:6px;border-radius:4px;background:#eef1f6;margin-top:5px;overflow:hidden}
+.bar > i{display:block;height:100%;background:var(--green)}
+table{border-collapse:collapse;width:100%;background:var(--card)}
+.matwrap{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:10px}
+.mat th,.mat td{border:1px solid var(--line);padding:6px 8px;font-size:11.5px;vertical-align:top}
+.mat thead th{position:sticky;top:0;background:var(--navy);color:#fff;z-index:3;font-weight:600;text-align:center}
+.mat tbody th{position:sticky;left:0;background:#f0f3f8;z-index:2;text-align:left;font-weight:600;min-width:165px}
+.mat td{text-align:center;min-width:96px}
+.mat td.has{background:var(--greenbg);color:var(--green);font-weight:600}
+.mat td.gap{color:#c8cdd6}
+.controls{display:flex;gap:10px;align-items:center;margin-bottom:11px;flex-wrap:wrap}
+.controls input[type=text],.controls select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff}
+.controls label{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:5px;cursor:pointer}
+.mtable th,.mtable td{padding:8px 10px;border-bottom:1px solid var(--line);font-size:12.5px;text-align:left}
+.mtable thead th{background:#f0f3f8;color:var(--navy);position:sticky;top:0;font-weight:600}
+.chip{display:inline-block;background:var(--chip);color:var(--blue);border-radius:20px;padding:2px 9px;font-size:11px;margin:2px 3px 0 0;font-weight:600}
+.tablecard{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:auto;max-height:70vh}
+.ccard{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:15px;border-top:3px solid var(--navy);margin-bottom:14px}
+.ccard h3{margin:0 0 10px;font-size:15px;color:var(--navy)}
+.ctab{width:100%;border-collapse:collapse}
+.ctab td,.ctab th{border:1px solid var(--line);padding:5px 8px;font-size:11.5px;text-align:left;vertical-align:top}
+.ctab thead th{background:#f0f3f8;color:var(--navy);font-weight:600}
+.note{font-size:11.5px;color:var(--muted);margin-top:14px;line-height:1.5}
+.loading{padding:60px;text-align:center;color:var(--muted)}
+.err{background:var(--redbg);color:var(--red);padding:12px 14px;border-radius:9px;border:1px solid #f3c6c6;font-size:13px}
+.legend{font-size:11.5px;color:var(--muted);margin-top:8px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;margin:0 3px 0 9px}
+@media(max-width:760px){.kpis{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Homeland Group · Consultant Selection Dashboard</h1>
+      <div class="sub">Directory → Semi-Final → Comparison pipeline across all projects</div>
+    </div>
+    <div class="updated" id="updated"></div>
+  </header>
+
+  <div id="content"><div class="loading">Loading data…</div></div>
+</div>
+
+<script>
+// ---- which projects map to which directory columns ----
+const PROJECTS = [
+  {key:"CP-Atelier",  label:"CP-Atelier",            col:"CP-ATELIER"},
+  {key:"HGP",         label:"HGP",                    col:"HGP"},
+  {key:"HLP",         label:"HLP",                    col:"HLP"},
+  {key:"YPS",         label:"YPS (Leisure Valley)",   col:"YPS (LEISURE VALLEY)"},
+  {key:"Mulanpur",    label:"Mulanpur (Infinia)",     col:"MULANPUR (INFINIA)"},
+  {key:"Dharampur",   label:"Dharampur (Vaana)",      col:"DHARMAPUR (VAANA)"},
+  {key:"Amritsar",    label:"Amritsar (Ranjit Ave)",  col:"AMRITSAR (RANJIT AVENUE)"},
+  {key:"Goa-Saipem",  label:"Goa (Saipem)",           col:"GOA (SAIPEM)"},
+  {key:"Goa-Pilerne", label:"Goa (Pilerne)",          col:"GOA (PILERNE)"},
+  {key:"Ludhiana",    label:"Ludhiana",               col:"LUDHIANA"},
+];
+const COST_FILES = [
+  {file:"data/04_cost_DHARMAPUR.csv", label:"Dharampur (Vaana)"},
+  {file:"data/05_cost_MULANPUR.csv",  label:"Mulanpur (Infinia)"},
+  {file:"data/06_cost_YPS.csv",       label:"YPS (Leisure Valley)"},
+  {file:"data/07_cost_HLP.csv",       label:"HLP"},
+];
+function canon(s){
+  const u=(s||"").toUpperCase();
+  if(u.includes("CP-ATELIER")||u.includes("CP ATELIER")) return "CP-Atelier";
+  if(u.includes("HGP")) return "HGP";
+  if(u.includes("HLP")) return "HLP";
+  if(u.includes("YPS")||u.includes("LEISURE")) return "YPS";
+  if(u.includes("MULANPUR")||u.includes("INFINIA")) return "Mulanpur";
+  if(u.includes("DHARMAPUR")||u.includes("DHARAMPUR")||u.includes("VAANA")) return "Dharampur";
+  if(u.includes("AMRITSAR")||u.includes("RANJIT")) return "Amritsar";
+  if(u.includes("SAIPEM")) return "Goa-Saipem";
+  if(u.includes("PILERNE")) return "Goa-Pilerne";
+  if(u.includes("LUDHIANA")) return "Ludhiana";
+  return null;
+}
+const isTrue=v=>String(v).trim().toUpperCase()==="TRUE";
+
+// ---- tiny CSV parser (handles quotes, commas, newlines) ----
+function parseCSV(text){
+  const rows=[]; let row=[], cur="", q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; }
+      else cur+=c;
+    } else {
+      if(c==='"') q=true;
+      else if(c===','){ row.push(cur); cur=""; }
+      else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=""; }
+      else if(c==='\r'){ /* skip */ }
+      else cur+=c;
+    }
+  }
+  if(cur!==""||row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(r=>r.length && !(r.length===1 && r[0]===""));
+}
+async function fetchCSV(path){
+  const r=await fetch(path,{cache:"no-store"});
+  if(!r.ok) throw new Error("Could not load "+path+" ("+r.status+")");
+  return parseCSV(await r.text());
+}
+
+function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;}
+
+function buildModel(dirRows, pipeRows){
+  const out={cats:[],master:[],coverage:{},candidates:{},semi:{},finalized:{},pipeline:[]};
+  PROJECTS.forEach(p=>{out.coverage[p.key]={};out.candidates[p.key]=0;out.semi[p.key]=0;out.finalized[p.key]=0;});
+
+  // directory: header then rows
+  const hdr=dirRows[0];
+  const colIdx={}; PROJECTS.forEach(p=>{ colIdx[p.key]=hdr.indexOf(p.col); });
+  let cat="";
+  for(let i=1;i<dirRows.length;i++){
+    const r=dirRows[i];
+    if(r[1] && r[1].trim()) cat=r[1].trim();
+    const consultant=(r[2]||"").trim();
+    if(!consultant) continue;
+    if(cat && !out.cats.includes(cat)) out.cats.push(cat);
+    const onProjs=[];
+    PROJECTS.forEach(p=>{
+      const idx=colIdx[p.key];
+      if(idx>=0 && isTrue(r[idx])){
+        onProjs.push(p.label); out.candidates[p.key]++;
+        (out.coverage[p.key][cat]=out.coverage[p.key][cat]||[]).push(consultant);
+      }
+    });
+    out.master.push({cat,consultant,projects:onProjs});
+  }
+
+  // pipeline
+  for(let i=1;i<pipeRows.length;i++){
+    const r=pipeRows[i];
+    if(!r[0]||!r[2]) continue;
+    const pk=canon(r[0]); const fin=isTrue(r[7]);
+    out.pipeline.push({project:r[0],pk,category:r[1],consultant:r[2],by:r[3],
+      proposal:isTrue(r[4]),meeting:isTrue(r[5]),loi:isTrue(r[6]),finalize:fin});
+    if(pk){ out.semi[pk]++; if(fin) out.finalized[pk]++; }
+  }
+  return out;
+}
+
+function render(d, costBlocks){
+  const root=document.getElementById("content"); root.innerHTML="";
+  document.getElementById("updated").textContent="Snapshot · "+new Date().toLocaleDateString("en-IN",{dateStyle:"medium"});
+
+  const totShort=Object.values(d.candidates).reduce((a,b)=>a+b,0);
+  const totFinal=Object.values(d.finalized).reduce((a,b)=>a+b,0);
+  const kpis=[
+    [PROJECTS.length,"Projects"],[d.cats.length,"Categories"],[d.master.length,"Candidate firms"],
+    [totShort,"Shortlist ticks"],[d.pipeline.length,"In semi-final"],[totFinal,"Finalized"]
+  ];
+  const kwrap=el("div","kpis");
+  kpis.forEach(k=>kwrap.appendChild(el("div","kpi",`<div class="n">${k[0]}</div><div class="l">${k[1]}</div>`)));
+  root.appendChild(kwrap);
+
+  const tabs=el("div","tabs");
+  const panels=el("div");
+  const defs=[["Overview","ov"],["Coverage matrix","cov"],["Master list","mas"],["Cost comparison","cost"]];
+  defs.forEach((t,i)=>{
+    const tb=el("div","tab"+(i===0?" active":""),t[0]); tb.dataset.t=t[1];
+    tb.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+      document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
+      tb.classList.add("active"); document.getElementById("p-"+t[1]).classList.add("active");};
+    tabs.appendChild(tb);
+  });
+  root.appendChild(tabs); root.appendChild(panels);
+
+  // Overview
+  const pov=el("div","panel active"); pov.id="p-ov";
+  const cg=el("div","grid-cards");
+  PROJECTS.forEach(p=>{
+    const sh=d.candidates[p.key], se=d.semi[p.key], fi=d.finalized[p.key];
+    const covCats=Object.keys(d.coverage[p.key]).length;
+    const pct=d.cats.length?Math.round(covCats/d.cats.length*100):0;
+    const card=el("div","pcard");
+    card.innerHTML=`<h3>${p.label}</h3>
+      <div class="funnel">
+        <div class="stage s1"><div class="v">${sh}</div><div class="k">Shortlisted</div></div>
+        <div class="stage s2"><div class="v">${se}</div><div class="k">Semi-final</div></div>
+        <div class="stage s3"><div class="v">${fi}</div><div class="k">Finalized</div></div>
+      </div>
+      <div class="cov"><b>${covCats}</b> of ${d.cats.length} categories have a pick
+        <div class="bar"><i style="width:${pct}%"></i></div></div>`;
+    cg.appendChild(card);
+  });
+  pov.appendChild(cg); panels.appendChild(pov);
+
+  // Coverage matrix
+  const pc=el("div","panel"); pc.id="p-cov";
+  const ctrl=el("div","controls");
+  ctrl.innerHTML=`<label><input type="checkbox" id="hideEmpty" checked> Hide categories with no picks anywhere</label>
+    <span class="legend"><span class="dot" style="background:var(--greenbg);border:1px solid #bfe3cd"></span>has a pick
+    <span class="dot" style="background:#fff;border:1px solid var(--line)"></span>gap</span>`;
+  pc.appendChild(ctrl);
+  const mw=el("div","matwrap"); const tbl=el("table","mat");
+  const thead=el("thead"); let hr="<tr><th>Category</th>"; PROJECTS.forEach(p=>hr+=`<th>${p.label}</th>`); hr+="</tr>";
+  thead.innerHTML=hr; tbl.appendChild(thead);
+  const tb=el("tbody"); tbl.appendChild(tb);
+  function drawMatrix(hideEmpty){
+    tb.innerHTML="";
+    d.cats.forEach(cat=>{
+      const any=PROJECTS.some(p=>(d.coverage[p.key][cat]||[]).length);
+      if(hideEmpty&&!any) return;
+      let row=`<th>${cat}</th>`;
+      PROJECTS.forEach(p=>{
+        const names=d.coverage[p.key][cat]||[];
+        row+= names.length ? `<td class="has">${names.join("<br>")}</td>` : `<td class="gap">—</td>`;
+      });
+      tb.appendChild(el("tr",null,row));
+    });
+  }
+  drawMatrix(true);
+  pc.appendChild(mw); mw.appendChild(tbl); panels.appendChild(pc);
+  ctrl.querySelector("#hideEmpty").onchange=e=>drawMatrix(e.target.checked);
+
+  // Master list
+  const pm=el("div","panel"); pm.id="p-mas";
+  const mc=el("div","controls");
+  const catOpts=["All categories"].concat(d.cats).map(c=>`<option>${c}</option>`).join("");
+  mc.innerHTML=`<input type="text" id="msearch" placeholder="Search consultant…" style="min-width:220px">
+    <select id="mcat">${catOpts}</select>
+    <select id="mproj"><option>All projects</option>${PROJECTS.map(p=>`<option>${p.label}</option>`).join("")}</select>
+    <span class="legend" id="mcount"></span>`;
+  pm.appendChild(mc);
+  const tc=el("div","tablecard"); const mt=el("table","mtable");
+  mt.innerHTML=`<thead><tr><th>Category</th><th>Consultant</th><th>Selected for (projects)</th></tr></thead><tbody></tbody>`;
+  tc.appendChild(mt); pm.appendChild(tc); panels.appendChild(pm);
+  const mbody=mt.querySelector("tbody");
+  function drawMaster(){
+    const q=(document.getElementById("msearch").value||"").toLowerCase();
+    const fc=document.getElementById("mcat").value, fp=document.getElementById("mproj").value;
+    mbody.innerHTML=""; let n=0;
+    d.master.forEach(r=>{
+      if(q&&!r.consultant.toLowerCase().includes(q)) return;
+      if(fc!=="All categories"&&r.cat!==fc) return;
+      if(fp!=="All projects"&&!r.projects.includes(fp)) return;
+      n++;
+      const chips=r.projects.length?r.projects.map(p=>`<span class="chip">${p}</span>`).join(""):'<span style="color:#c8cdd6">— none yet —</span>';
+      mbody.appendChild(el("tr",null,`<td style="color:var(--muted)">${r.cat}</td><td style="font-weight:600">${r.consultant}</td><td>${chips}</td>`));
+    });
+    document.getElementById("mcount").textContent=n+" firms";
+  }
+  drawMaster();
+  ["msearch","mcat","mproj"].forEach(id=>{const e=document.getElementById(id);e.oninput=drawMaster;e.onchange=drawMaster;});
+
+  // Cost comparison — render each block's CSV as a table
+  const pcost=el("div","panel"); pcost.id="p-cost";
+  if(!costBlocks.length){ pcost.appendChild(el("div","note","No cost comparison files loaded.")); }
+  costBlocks.forEach(b=>{
+    const card=el("div","ccard");
+    let html=`<h3>${b.label}</h3><table class="ctab"><tbody>`;
+    b.rows.forEach((r,ri)=>{
+      const tag = ri===0 ? "th" : "td";
+      html+="<tr>"+r.map(c=>`<${tag}>${c===""?"":c}</${tag}>`).join("")+"</tr>";
+    });
+    html+="</tbody></table>";
+    card.innerHTML=html; pcost.appendChild(card);
+  });
+  pcost.appendChild(el("div","note","Figures read from each project's cost-comparison CSV. Rates exclude GST; blank cells mean not costed yet. Some projects compare several consultants side by side."));
+  panels.appendChild(pcost);
+}
+
+async function load(){
+  try{
+    const [dir,pipe]=await Promise.all([
+      fetchCSV("data/01_consultant_directory.csv"),
+      fetchCSV("data/02_semifinal_pipeline.csv"),
+    ]);
+    const costBlocks=[];
+    for(const cf of COST_FILES){
+      try{ const rows=await fetchCSV(cf.file); costBlocks.push({label:cf.label,rows}); }
+      catch(_){ /* skip a missing cost file */ }
+    }
+    render(buildModel(dir,pipe), costBlocks);
+  }catch(e){
+    document.getElementById("content").innerHTML='<div class="err">Could not load data: '+(e&&e.message?e.message:e)+'</div>';
+  }
+}
+load();
+</script>
+</body>
+</html>
