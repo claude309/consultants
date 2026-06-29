@@ -63,6 +63,26 @@ table{border-collapse:collapse;width:100%;background:var(--card)}
 .err{background:var(--redbg);color:var(--red);padding:12px 14px;border-radius:9px;border:1px solid #f3c6c6;font-size:13px}
 .legend{font-size:11.5px;color:var(--muted);margin-top:8px}
 .dot{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;margin:0 3px 0 9px}
+.stage{cursor:pointer;transition:background .12s,box-shadow .12s;position:relative}
+.stage:hover{background:#eaf0f9;box-shadow:0 0 0 1px var(--blue2) inset}
+.stage .hint{font-size:8.5px;color:var(--blue2);margin-top:3px;opacity:0;transition:opacity .12s}
+.stage:hover .hint{opacity:1}
+.modal-overlay{position:fixed;inset:0;background:rgba(20,28,40,.45);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 16px;overflow:auto}
+.modal-overlay.open{display:flex}
+.modal{background:var(--card);border-radius:12px;max-width:640px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.25);overflow:hidden}
+.modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.modal-head h3{margin:0;font-size:16px;color:var(--navy)}
+.modal-head .ms{font-size:12px;color:var(--muted);margin-top:3px}
+.modal-x{cursor:pointer;border:none;background:var(--chip);color:var(--muted);width:30px;height:30px;border-radius:7px;font-size:17px;line-height:1;flex:none}
+.modal-x:hover{background:#e1e7f1;color:var(--ink)}
+.modal-body{padding:8px 18px 18px;max-height:62vh;overflow:auto}
+.mcat{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:13px 0 4px;font-weight:600}
+.mrow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:13px}
+.mrow .nm{font-weight:600;color:var(--ink)}
+.mrow .meta{font-size:11px;color:var(--muted)}
+.flag{display:inline-block;border-radius:20px;padding:1px 8px;font-size:10.5px;font-weight:600;margin-left:5px}
+.flag.on{background:var(--greenbg);color:var(--green)} .flag.off{background:#f1f3f7;color:#aab0bb}
+.mempty{padding:24px 0;text-align:center;color:var(--muted);font-size:13px}
 @media(max-width:760px){.kpis{grid-template-columns:repeat(3,1fr)}}
 </style>
 </head>
@@ -77,6 +97,16 @@ table{border-collapse:collapse;width:100%;background:var(--card)}
   </header>
 
   <div id="content"><div class="loading">Loading data…</div></div>
+</div>
+
+<div class="modal-overlay" id="modal" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h3 id="modalTitle"></h3><div class="ms" id="modalSub"></div></div>
+      <button class="modal-x" id="modalX" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
 </div>
 
 <script>
@@ -215,12 +245,15 @@ function render(d, costBlocks){
     const card=el("div","pcard");
     card.innerHTML=`<h3>${p.label}</h3>
       <div class="funnel">
-        <div class="stage s1"><div class="v">${sh}</div><div class="k">Shortlisted</div></div>
-        <div class="stage s2"><div class="v">${se}</div><div class="k">Semi-final</div></div>
-        <div class="stage s3"><div class="v">${fi}</div><div class="k">Finalized</div></div>
+        <div class="stage s1" data-stage="shortlisted"><div class="v">${sh}</div><div class="k">Shortlisted</div><div class="hint">view ▸</div></div>
+        <div class="stage s2" data-stage="semi"><div class="v">${se}</div><div class="k">Semi-final</div><div class="hint">view ▸</div></div>
+        <div class="stage s3" data-stage="final"><div class="v">${fi}</div><div class="k">Finalized</div><div class="hint">view ▸</div></div>
       </div>
       <div class="cov"><b>${covCats}</b> of ${d.cats.length} categories have a pick
         <div class="bar"><i style="width:${pct}%"></i></div></div>`;
+    card.querySelectorAll(".stage").forEach(st=>{
+      st.onclick=()=>openStage(d,p,st.dataset.stage);
+    });
     cg.appendChild(card);
   });
   pov.appendChild(cg); panels.appendChild(pov);
@@ -299,6 +332,53 @@ function render(d, costBlocks){
   pcost.appendChild(el("div","note","Figures read from each project's cost-comparison CSV. Rates exclude GST; blank cells mean not costed yet. Some projects compare several consultants side by side."));
   panels.appendChild(pcost);
 }
+
+// ---- stage detail modal ----
+function flag(on,label){ return `<span class="flag ${on?'on':'off'}">${label}</span>`; }
+function openStage(d,p,stage){
+  const titleMap={shortlisted:"Shortlisted",semi:"Semi-final",final:"Finalized"};
+  const subMap={
+    shortlisted:"Consultants ticked for this project in the directory",
+    semi:"Consultants advanced into the semi-final pipeline",
+    final:"Consultants marked to finalize"
+  };
+  let body="";
+  if(stage==="shortlisted"){
+    // group by category from coverage
+    const cats=d.cats.filter(c=>(d.coverage[p.key][c]||[]).length);
+    if(!cats.length){ body=`<div class="mempty">No shortlisted consultants for ${p.label} yet.</div>`; }
+    else cats.forEach(c=>{
+      body+=`<div class="mcat">${c}</div>`;
+      (d.coverage[p.key][c]||[]).forEach(nm=>{
+        body+=`<div class="mrow"><span class="nm">${nm}</span></div>`;
+      });
+    });
+  } else {
+    let rows=d.pipeline.filter(r=>r.pk===p.key);
+    if(stage==="final") rows=rows.filter(r=>r.finalize);
+    if(!rows.length){
+      const why = stage==="final"
+        ? `No consultants finalized for ${p.label} yet.`
+        : `${p.label} has no entries in the semi-final pipeline yet.`;
+      body=`<div class="mempty">${why}</div>`;
+    } else {
+      rows.forEach(r=>{
+        const flags = stage==="semi"
+          ? flag(r.proposal,"Proposal")+flag(r.meeting,"Meeting")+flag(r.loi,"LOI")+flag(r.finalize,"Finalize")
+          : flag(r.proposal,"Proposal")+flag(r.meeting,"Meeting")+flag(r.loi,"LOI");
+        body+=`<div class="mrow"><span><span class="nm">${r.consultant}</span><div class="meta">${r.category||""}${r.by?" · via "+r.by:""}</div></span><span>${flags}</span></div>`;
+      });
+    }
+  }
+  document.getElementById("modalTitle").textContent=`${p.label} — ${titleMap[stage]}`;
+  document.getElementById("modalSub").textContent=subMap[stage];
+  document.getElementById("modalBody").innerHTML=body;
+  document.getElementById("modal").classList.add("open");
+}
+function closeModal(){ document.getElementById("modal").classList.remove("open"); }
+document.getElementById("modalX").onclick=closeModal;
+document.getElementById("modal").onclick=e=>{ if(e.target.id==="modal") closeModal(); };
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
 
 async function load(){
   try{
