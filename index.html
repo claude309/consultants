@@ -413,8 +413,12 @@ const RICH_FIELDS=[
 const PDF_NOTE="Extracted from each consultant's attached proposal document. AED figures are as quoted (excl. tax); INR quotes exclude GST; ~1 AED = INR 23 (indicative). Negotiation levers and next actions are decision-support suggestions, not directives.";
 function getProposal(name){
   const key=String(name||"").trim().toLowerCase();
-  const k=Object.keys(PROPOSALS).find(x=>x.trim().toLowerCase()===key);
-  return k?PROPOSALS[k]:null;
+  const k=Object.keys(PROPOSALS).find(x=>x[0]!=="_" && x.trim().toLowerCase()===key);
+  if(k) return PROPOSALS[k];
+  const al=PROPOSALS._aliases||{};
+  const ak=Object.keys(al).find(x=>x.trim().toLowerCase()===key);
+  if(ak){ const t=String(al[ak]).trim().toLowerCase(); const tk=Object.keys(PROPOSALS).find(x=>x[0]!=="_" && x.trim().toLowerCase()===t); if(tk) return PROPOSALS[tk]; }
+  return null;
 }
 function esc(t){return String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function renderComparison(d,p,list,cat,onBack){
