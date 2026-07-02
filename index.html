@@ -220,12 +220,17 @@ function buildModel(dirRows, pipeRows){
 
   // ---- Semi-Final pipeline ----
   // Invitation Sent = checkbox; Proposal Received & LOI Finalized hold a link/attachment when done (blank otherwise).
-  const ph=headerRow(pipeRows,s=>s.includes("consultant")&&s.includes("finaliz")&&
-    (s.includes("mail sent")||s.includes("invitation")||s.includes("recommended by")));
+  // Detect the pipeline header by its stable columns (Invitation / Proposal / Meeting).
+  // Note: the consultant-name header cell can be blank or junk, so we do NOT rely on it.
+  const ph=headerRow(pipeRows,s=>s.includes("invitation")&&s.includes("proposal")&&
+    (s.includes("meeting")||s.includes("finali")));
   if(ph>=0){
     const h=pipeRows[ph].map(x=>(x||"").toLowerCase());
     const col=(...keys)=>h.findIndex(x=>keys.some(k=>x.includes(k)));
-    const ci={ project:col("project"), category:col("category"), consultant:col("consultant"),
+    // Consultant name is column C (index 2) in this workbook; fall back to it when the
+    // header text is missing/corrupted so a bad header can't blank out the whole pipeline.
+    const consCol=col("consultant name","consultant","firm")>=0?col("consultant name","consultant","firm"):2;
+    const ci={ project:col("project"), category:col("category"), consultant:consCol,
       invited:col("invitation","mail sent","recommended"), proposal:col("proposal received","proposal"),
       meeting:col("meeting"), loi:col("loi"),
       amount:col("proposal amount","amount"), status:col("finalising","finalis","status"),
