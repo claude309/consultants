@@ -29,8 +29,8 @@ h1{font-size:20px;margin:0 0 2px;color:var(--navy);letter-spacing:.2px}
 .grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:12px}
 .pcard{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:14px;border-top:3px solid var(--blue)}
 .pcard h3{margin:0 0 10px;font-size:14.5px;color:var(--navy)}
-.funnel{display:flex;gap:7px}
-.stage{flex:1;text-align:center;background:var(--bg);border-radius:8px;padding:8px 4px;cursor:pointer;transition:background .12s,box-shadow .12s;position:relative}
+.funnel{display:flex;gap:7px;flex-wrap:wrap}
+.stage{flex:1 1 28%;min-width:64px;text-align:center;background:var(--bg);border-radius:8px;padding:8px 4px;cursor:pointer;transition:background .12s,box-shadow .12s;position:relative}
 .stage:hover{background:#eaf0f9;box-shadow:0 0 0 1px var(--blue2) inset}
 .stage .v{font-size:19px;font-weight:700;color:var(--ink)}
 .stage.s1 .v{color:var(--blue2)} .stage.s2 .v{color:var(--amber)} .stage.s3 .v{color:var(--green)}
@@ -163,8 +163,8 @@ async function fetchCSV(url){
 function headerRow(rows,test){ return rows.findIndex(r=>test(r.join("|").toLowerCase())); }
 
 function buildModel(dirRows, pipeRows){
-  const out={cats:[],master:[],coverage:{},candidates:{},semi:{},finalized:{},pipeline:[]};
-  PROJECTS.forEach(p=>{out.coverage[p.key]={};out.candidates[p.key]=0;out.semi[p.key]=0;out.finalized[p.key]=0;});
+  const out={cats:[],master:[],coverage:{},candidates:{},invited:{},proposal:{},semi:{},finalized:{},pipeline:[]};
+  PROJECTS.forEach(p=>{out.coverage[p.key]={};out.candidates[p.key]=0;out.invited[p.key]=0;out.proposal[p.key]=0;out.semi[p.key]=0;out.finalized[p.key]=0;});
 
   // ---- Directory ----
   const dh=headerRow(dirRows,s=>s.includes("consultant name"));
@@ -209,10 +209,10 @@ function buildModel(dirRows, pipeRows){
       if(!proj||!cons) return;
       const cat=clean(at(r,ci.category))||curCat; curCat=cat;
       const pk=canon(proj);
-      const mailSent=isTrue(at(r,ci.mail)), fin=isTrue(at(r,ci.finalize));
+      const mailSent=isTrue(at(r,ci.mail)), prop=isTrue(at(r,ci.proposal)), fin=isTrue(at(r,ci.finalize));
       out.pipeline.push({project:proj,pk,category:cat,consultant:cons,mail:mailSent,
-        proposal:isTrue(at(r,ci.proposal)),meeting:isTrue(at(r,ci.meeting)),loi:isTrue(at(r,ci.loi)),finalize:fin});
-      if(pk){ if(mailSent) out.semi[pk]++; if(fin) out.finalized[pk]++; }
+        proposal:prop,meeting:isTrue(at(r,ci.meeting)),loi:isTrue(at(r,ci.loi)),finalize:fin});
+      if(pk){ if(mailSent){out.invited[pk]++;out.semi[pk]++;} if(prop) out.proposal[pk]++; if(fin) out.finalized[pk]++; }
     });
   }
   return out;
@@ -248,14 +248,16 @@ function render(d){
   const pov=el("div","panel active"); pov.id="p-ov";
   const cg=el("div","grid-cards");
   PROJECTS.forEach(p=>{
-    const sh=d.candidates[p.key], se=d.semi[p.key], fi=d.finalized[p.key];
+    const sh=d.candidates[p.key], iv=d.invited[p.key], pr=d.proposal[p.key], se=d.semi[p.key], fi=d.finalized[p.key];
     const covCats=Object.keys(d.coverage[p.key]).length;
     const pct=d.cats.length?Math.round(covCats/d.cats.length*100):0;
     const card=el("div","pcard");
     card.innerHTML=`<h3>${p.label}</h3>
       <div class="funnel">
         <div class="stage s1" data-stage="shortlisted"><div class="v">${sh}</div><div class="k">Shortlisted</div><div class="hint">view ▸</div></div>
-        <div class="stage s2" data-stage="semi"><div class="v">${se}</div><div class="k">Semi-final</div><div class="hint">view ▸</div></div>
+        <div class="stage s2" data-stage="invited"><div class="v">${iv}</div><div class="k">Invitation Sent</div><div class="hint">view ▸</div></div>
+        <div class="stage s2" data-stage="proposal"><div class="v">${pr}</div><div class="k">Proposal Received</div><div class="hint">view ▸</div></div>
+        <div class="stage s1" data-stage="semi"><div class="v">${se}</div><div class="k">Semi-final</div><div class="hint">view ▸</div></div>
         <div class="stage s3" data-stage="final"><div class="v">${fi}</div><div class="k">Finalized</div><div class="hint">view ▸</div></div>
       </div>
       <div class="cov"><b>${covCats}</b> of ${d.cats.length} categories have a pick
@@ -325,9 +327,14 @@ function render(d){
 // ---- stage detail modal ----
 function flag(on,label){ return `<span class="flag ${on?'on':'off'}">${label}</span>`; }
 function openStage(d,p,stage){
-  const titleMap={shortlisted:"Shortlisted",semi:"Semi-final",final:"Finalized"};
+  const titleMap={shortlisted:"Shortlisted",invited:"Invitation Sent",proposal:"Proposal Received",semi:"Semi-final",final:"Finalized"};
   const subMap={ shortlisted:"Consultants ticked for this project in the directory",
+    invited:"Consultants whose invitation (mail) has been sent",
+    proposal:"Consultants who have submitted a proposal",
     semi:"Consultants whose invitation (mail) has been sent", final:"Consultants marked to finalize" };
+  const emptyMap={ invited:`No invitations sent for ${p.label} yet.`,
+    proposal:`No proposals received for ${p.label} yet.`,
+    semi:`No invitations sent for ${p.label} yet.`, final:`No consultants finalized for ${p.label} yet.` };
   let body="";
   if(stage==="shortlisted"){
     const cats=d.cats.filter(c=>(d.coverage[p.key][c]||[]).length);
@@ -336,15 +343,14 @@ function openStage(d,p,stage){
       (d.coverage[p.key][c]||[]).forEach(nm=>{ body+=`<div class="mrow"><span class="nm">${nm}</span></div>`; }); });
   } else {
     let rows=d.pipeline.filter(r=>r.pk===p.key);
-    if(stage==="semi") rows=rows.filter(r=>r.mail);
+    if(stage==="invited"||stage==="semi") rows=rows.filter(r=>r.mail);
+    if(stage==="proposal") rows=rows.filter(r=>r.proposal);
     if(stage==="final") rows=rows.filter(r=>r.finalize);
     if(!rows.length){
-      body=`<div class="mempty">${stage==="final"?`No consultants finalized for ${p.label} yet.`:`No invitations sent for ${p.label} yet.`}</div>`;
+      body=`<div class="mempty">${emptyMap[stage]||"Nothing to show yet."}</div>`;
     } else {
       rows.forEach(r=>{
-        const flags = stage==="semi"
-          ? flag(r.mail,"Invited")+flag(r.proposal,"Proposal")+flag(r.meeting,"Meeting")+flag(r.loi,"LOI")+flag(r.finalize,"Finalize")
-          : flag(r.proposal,"Proposal")+flag(r.meeting,"Meeting")+flag(r.loi,"LOI");
+        const flags = flag(r.mail,"Invited")+flag(r.proposal,"Proposal")+flag(r.meeting,"Meeting")+flag(r.loi,"LOI")+flag(r.finalize,"Finalize");
         body+=`<div class="mrow"><span><span class="nm">${r.consultant}</span><div class="meta">${r.category||""}</div></span><span>${flags}</span></div>`;
       });
     }
@@ -361,11 +367,17 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
 
 async function load(){
   try{
-    const [dir,pipe]=await Promise.all([fetchCSV(DIR_URL), fetchCSV(SEMI_URL)]);
+    const dir=await fetchCSV(DIR_URL);
+    let pipe=[], semiErr=false;
+    try{ pipe=await fetchCSV(SEMI_URL); }catch(_){ semiErr=true; }
     render(buildModel(dir,pipe));
+    if(semiErr){
+      const n=el("div","err","Semi-Final data couldn't load — publish the <b>Semi Final Consultants</b> tab to web as CSV (or publish the Entire document). Shortlisted still shows from the Directory; Invitation Sent / Proposal Received / Semi-final / Finalized read 0 until then.");
+      n.style.marginTop="14px"; document.getElementById("content").appendChild(n);
+    }
   }catch(e){
-    document.getElementById("content").innerHTML='<div class="err">Could not load the published sheet: '+
-      (e&&e.message?e.message:e)+'<br><br>Make sure both the Consultant directory and Semi-Final tabs are Published to web as CSV.</div>';
+    document.getElementById("content").innerHTML='<div class="err">Could not load the published Directory sheet: '+
+      (e&&e.message?e.message:e)+'<br><br>Make sure the Consultant directory tab is Published to web as CSV.</div>';
   }
 }
 load();
