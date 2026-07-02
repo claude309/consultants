@@ -30,10 +30,13 @@ h1{font-size:20px;margin:0 0 2px;color:var(--navy);letter-spacing:.2px}
 .pcard{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:14px;border-top:3px solid var(--blue)}
 .pcard h3{margin:0 0 10px;font-size:14.5px;color:var(--navy)}
 .funnel{display:flex;gap:7px}
-.stage{flex:1;text-align:center;background:var(--bg);border-radius:8px;padding:8px 4px}
+.stage{flex:1;text-align:center;background:var(--bg);border-radius:8px;padding:8px 4px;cursor:pointer;transition:background .12s,box-shadow .12s;position:relative}
+.stage:hover{background:#eaf0f9;box-shadow:0 0 0 1px var(--blue2) inset}
 .stage .v{font-size:19px;font-weight:700;color:var(--ink)}
 .stage.s1 .v{color:var(--blue2)} .stage.s2 .v{color:var(--amber)} .stage.s3 .v{color:var(--green)}
 .stage .k{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-top:2px}
+.stage .hint{font-size:8.5px;color:var(--blue2);margin-top:3px;opacity:0;transition:opacity .12s}
+.stage:hover .hint{opacity:1}
 .cov{margin-top:10px;font-size:12px;color:var(--muted)}
 .cov b{color:var(--ink)}
 .bar{height:6px;border-radius:4px;background:#eef1f6;margin-top:5px;overflow:hidden}
@@ -53,20 +56,11 @@ table{border-collapse:collapse;width:100%;background:var(--card)}
 .mtable thead th{background:#f0f3f8;color:var(--navy);position:sticky;top:0;font-weight:600}
 .chip{display:inline-block;background:var(--chip);color:var(--blue);border-radius:20px;padding:2px 9px;font-size:11px;margin:2px 3px 0 0;font-weight:600}
 .tablecard{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:auto;max-height:70vh}
-.ccard{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:15px;border-top:3px solid var(--navy);margin-bottom:14px}
-.ccard h3{margin:0 0 10px;font-size:15px;color:var(--navy)}
-.ctab{width:100%;border-collapse:collapse}
-.ctab td,.ctab th{border:1px solid var(--line);padding:5px 8px;font-size:11.5px;text-align:left;vertical-align:top}
-.ctab thead th{background:#f0f3f8;color:var(--navy);font-weight:600}
 .note{font-size:11.5px;color:var(--muted);margin-top:14px;line-height:1.5}
 .loading{padding:60px;text-align:center;color:var(--muted)}
 .err{background:var(--redbg);color:var(--red);padding:12px 14px;border-radius:9px;border:1px solid #f3c6c6;font-size:13px}
 .legend{font-size:11.5px;color:var(--muted);margin-top:8px}
 .dot{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;margin:0 3px 0 9px}
-.stage{cursor:pointer;transition:background .12s,box-shadow .12s;position:relative}
-.stage:hover{background:#eaf0f9;box-shadow:0 0 0 1px var(--blue2) inset}
-.stage .hint{font-size:8.5px;color:var(--blue2);margin-top:3px;opacity:0;transition:opacity .12s}
-.stage:hover .hint{opacity:1}
 .modal-overlay{position:fixed;inset:0;background:rgba(20,28,40,.45);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 16px;overflow:auto}
 .modal-overlay.open{display:flex}
 .modal{background:var(--card);border-radius:12px;max-width:640px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.25);overflow:hidden}
@@ -91,12 +85,11 @@ table{border-collapse:collapse;width:100%;background:var(--card)}
   <header class="top">
     <div>
       <h1>Homeland Group · Consultant Selection Dashboard</h1>
-      <div class="sub">Directory → Semi-Final → Comparison pipeline across all projects</div>
+      <div class="sub">Live view — reads the published Google Sheet. Directory → Semi-Final pipeline.</div>
     </div>
     <div class="updated" id="updated"></div>
   </header>
-
-  <div id="content"><div class="loading">Loading data…</div></div>
+  <div id="content"><div class="loading">Loading live data from the sheet…</div></div>
 </div>
 
 <div class="modal-overlay" id="modal" role="dialog" aria-modal="true">
@@ -110,24 +103,22 @@ table{border-collapse:collapse;width:100%;background:var(--card)}
 </div>
 
 <script>
-// ---- which projects map to which directory columns ----
+// ---- Published-to-web CSV sources (whole workbook shares one key; tabs differ by gid) ----
+const PUB="https://docs.google.com/spreadsheets/d/e/2PACX-1vQrKhmQ8jNl1J4qPYPf26z83sY0IqDem_4dKk7zmO6mSCQ907WcIJcpx9829P0_uOTxT6SR_F6D_cNH/pub";
+const DIR_URL = PUB+"?gid=1496981245&single=true&output=csv";  // Consultant directory
+const SEMI_URL= PUB+"?gid=1621619574&single=true&output=csv";  // Semi-Final Consultants
+
 const PROJECTS = [
-  {key:"CP-Atelier",  label:"CP-Atelier",            col:"CP-ATELIER"},
-  {key:"HGP",         label:"HGP",                    col:"HGP"},
-  {key:"HLP",         label:"HLP",                    col:"HLP"},
-  {key:"YPS",         label:"YPS (Leisure Valley)",   col:"YPS (LEISURE VALLEY)"},
-  {key:"Mulanpur",    label:"Mulanpur (Infinia)",     col:"MULANPUR (INFINIA)"},
-  {key:"Dharampur",   label:"Dharampur (Vaana)",      col:"DHARMAPUR (VAANA)"},
-  {key:"Amritsar",    label:"Amritsar (Ranjit Ave)",  col:"AMRITSAR (RANJIT AVENUE)"},
-  {key:"Goa-Saipem",  label:"Goa (Saipem)",           col:"GOA (SAIPEM)"},
-  {key:"Goa-Pilerne", label:"Goa (Pilerne)",          col:"GOA (PILERNE)"},
-  {key:"Ludhiana",    label:"Ludhiana",               col:"LUDHIANA"},
-];
-const COST_FILES = [
-  {file:"data/04_cost_DHARMAPUR.csv", label:"Dharampur (Vaana)"},
-  {file:"data/05_cost_MULANPUR.csv",  label:"Mulanpur (Infinia)"},
-  {file:"data/06_cost_YPS.csv",       label:"YPS (Leisure Valley)"},
-  {file:"data/07_cost_HLP.csv",       label:"HLP"},
+  {key:"CP-Atelier",  label:"CP-Atelier"},
+  {key:"HGP",         label:"HGP"},
+  {key:"HLP",         label:"HLP"},
+  {key:"YPS",         label:"YPS (Leisure Valley)"},
+  {key:"Mulanpur",    label:"Mulanpur (Infinia)"},
+  {key:"Dharampur",   label:"Dharampur (Vaana)"},
+  {key:"Amritsar",    label:"Amritsar (Ranjit Ave)"},
+  {key:"Goa-Saipem",  label:"Goa (Saipem)"},
+  {key:"Goa-Pilerne", label:"Goa (Pilerne)"},
+  {key:"Ludhiana",    label:"Ludhiana"},
 ];
 function canon(s){
   const u=(s||"").toUpperCase();
@@ -135,7 +126,7 @@ function canon(s){
   if(u.includes("HGP")) return "HGP";
   if(u.includes("HLP")) return "HLP";
   if(u.includes("YPS")||u.includes("LEISURE")) return "YPS";
-  if(u.includes("MULANPUR")||u.includes("INFINIA")) return "Mulanpur";
+  if(u.includes("MULANPUR")||u.includes("MULLANPUR")||u.includes("INFINIA")) return "Mulanpur";
   if(u.includes("DHARMAPUR")||u.includes("DHARAMPUR")||u.includes("VAANA")) return "Dharampur";
   if(u.includes("AMRITSAR")||u.includes("RANJIT")) return "Amritsar";
   if(u.includes("SAIPEM")) return "Goa-Saipem";
@@ -144,90 +135,108 @@ function canon(s){
   return null;
 }
 const isTrue=v=>String(v).trim().toUpperCase()==="TRUE";
+const clean=s=>String(s||"").replace(/\\?\[merged\\?\]/gi,"").trim();
 
-// ---- tiny CSV parser (handles quotes, commas, newlines) ----
+// ---- CSV parser (handles quotes, commas, newlines) ----
 function parseCSV(text){
   const rows=[]; let row=[], cur="", q=false;
   for(let i=0;i<text.length;i++){
     const c=text[i];
-    if(q){
-      if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; }
-      else cur+=c;
-    } else {
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else{
       if(c==='"') q=true;
       else if(c===','){ row.push(cur); cur=""; }
       else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=""; }
-      else if(c==='\r'){ /* skip */ }
+      else if(c==='\r'){}
       else cur+=c;
     }
   }
   if(cur!==""||row.length){ row.push(cur); rows.push(row); }
-  return rows.filter(r=>r.length && !(r.length===1 && r[0]===""));
+  return rows;
 }
-async function fetchCSV(path){
-  const r=await fetch(path,{cache:"no-store"});
-  if(!r.ok) throw new Error("Could not load "+path+" ("+r.status+")");
+async function fetchCSV(url){
+  const r=await fetch(url,{cache:"no-store"});
+  if(!r.ok) throw new Error("HTTP "+r.status+" fetching sheet");
   return parseCSV(await r.text());
 }
-
-function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;}
+// Find the header row (by test on the joined lowercased row) within a set of rows.
+function headerRow(rows,test){ return rows.findIndex(r=>test(r.join("|").toLowerCase())); }
 
 function buildModel(dirRows, pipeRows){
   const out={cats:[],master:[],coverage:{},candidates:{},semi:{},finalized:{},pipeline:[]};
   PROJECTS.forEach(p=>{out.coverage[p.key]={};out.candidates[p.key]=0;out.semi[p.key]=0;out.finalized[p.key]=0;});
 
-  // directory: header then rows
-  const hdr=dirRows[0];
-  const colIdx={}; PROJECTS.forEach(p=>{ colIdx[p.key]=hdr.indexOf(p.col); });
-  let cat="";
-  for(let i=1;i<dirRows.length;i++){
-    const r=dirRows[i];
-    if(r[1] && r[1].trim()) cat=r[1].trim();
-    const consultant=(r[2]||"").trim();
-    if(!consultant) continue;
-    if(cat && !out.cats.includes(cat)) out.cats.push(cat);
-    const onProjs=[];
-    PROJECTS.forEach(p=>{
-      const idx=colIdx[p.key];
-      if(idx>=0 && isTrue(r[idx])){
-        onProjs.push(p.label); out.candidates[p.key]++;
-        (out.coverage[p.key][cat]=out.coverage[p.key][cat]||[]).push(consultant);
-      }
+  // ---- Directory ----
+  const dh=headerRow(dirRows,s=>s.includes("consultant name"));
+  if(dh>=0){
+    const header=dirRows[dh];
+    const idxCat=header.findIndex(h=>clean(h).toLowerCase()==="category");
+    const idxCons=header.findIndex(h=>(h||"").toLowerCase().includes("consultant name"));
+    const projCols=[];
+    header.forEach((h,i)=>{ const pk=canon(h); if(pk && PROJECTS.some(p=>p.key===pk) && !projCols.some(c=>c.key===pk)) projCols.push({idx:i,key:pk}); });
+    const cCat=idxCat>=0?idxCat:1, cCons=idxCons>=0?idxCons:2;
+    let cat="";
+    dirRows.slice(dh+1).forEach(r=>{
+      const cc=clean(r[cCat]); if(cc) cat=cc;             // forward-fill merged category
+      const consultant=clean(r[cCons]); if(!consultant) return;
+      if(cat && !out.cats.includes(cat)) out.cats.push(cat);
+      const onProjs=[];
+      projCols.forEach(pc=>{
+        if(isTrue(r[pc.idx])){
+          const p=PROJECTS.find(x=>x.key===pc.key);
+          onProjs.push(p.label); out.candidates[pc.key]++;
+          (out.coverage[pc.key][cat]=out.coverage[pc.key][cat]||[]).push(consultant);
+        }
+      });
+      out.master.push({cat,consultant,projects:onProjs});
     });
-    out.master.push({cat,consultant,projects:onProjs});
   }
 
-  // pipeline
-  for(let i=1;i<pipeRows.length;i++){
-    const r=pipeRows[i];
-    if(!r[0]||!r[2]) continue;
-    const pk=canon(r[0]); const fin=isTrue(r[7]);
-    out.pipeline.push({project:r[0],pk,category:r[1],consultant:r[2],by:r[3],
-      proposal:isTrue(r[4]),meeting:isTrue(r[5]),loi:isTrue(r[6]),finalize:fin});
-    if(pk){ out.semi[pk]++; if(fin) out.finalized[pk]++; }
+  // ---- Semi-Final pipeline (semi-final = invitation / Mail sent ticked) ----
+  const ph=headerRow(pipeRows,s=>s.includes("consultant")&&s.includes("finalize")&&
+    (s.includes("mail sent")||s.includes("invitation")||s.includes("recommended by")));
+  if(ph>=0){
+    const h=pipeRows[ph].map(x=>(x||"").toLowerCase());
+    const col=(...keys)=>h.findIndex(x=>keys.some(k=>x.includes(k)));
+    const ci={ project:col("project"), category:col("category"), consultant:col("consultant"),
+      mail:col("mail sent","invitation","recommended"), proposal:col("proposal"), meeting:col("meeting"),
+      loi:col("loi"), finalize:h.findIndex(x=>x.trim()==="finalize"||(x.includes("finaliz")&&!x.includes("loi"))) };
+    const at=(r,i)=> i>=0 ? r[i] : "";
+    let curCat="", curProj="";
+    pipeRows.slice(ph+1).forEach(r=>{
+      const proj=clean(at(r,ci.project))||curProj; curProj=proj;
+      const cons=clean(at(r,ci.consultant));
+      if(!proj||!cons) return;
+      const cat=clean(at(r,ci.category))||curCat; curCat=cat;
+      const pk=canon(proj);
+      const mailSent=isTrue(at(r,ci.mail)), fin=isTrue(at(r,ci.finalize));
+      out.pipeline.push({project:proj,pk,category:cat,consultant:cons,mail:mailSent,
+        proposal:isTrue(at(r,ci.proposal)),meeting:isTrue(at(r,ci.meeting)),loi:isTrue(at(r,ci.loi)),finalize:fin});
+      if(pk){ if(mailSent) out.semi[pk]++; if(fin) out.finalized[pk]++; }
+    });
   }
   return out;
 }
 
-function render(d, costBlocks){
+function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;}
+
+function render(d){
   const root=document.getElementById("content"); root.innerHTML="";
-  document.getElementById("updated").textContent="Snapshot · "+new Date().toLocaleDateString("en-IN",{dateStyle:"medium"});
+  document.getElementById("updated").textContent="Live · loaded "+new Date().toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"});
 
   const totShort=Object.values(d.candidates).reduce((a,b)=>a+b,0);
+  const totSemi=Object.values(d.semi).reduce((a,b)=>a+b,0);
   const totFinal=Object.values(d.finalized).reduce((a,b)=>a+b,0);
-  const kpis=[
-    [PROJECTS.length,"Projects"],[d.cats.length,"Categories"],[d.master.length,"Candidate firms"],
-    [totShort,"Shortlist ticks"],[d.pipeline.length,"In semi-final"],[totFinal,"Finalized"]
-  ];
+  const kpis=[[PROJECTS.length,"Projects"],[d.cats.length,"Categories"],[d.master.length,"Candidate firms"],
+    [totShort,"Shortlist ticks"],[totSemi,"In semi-final"],[totFinal,"Finalized"]];
   const kwrap=el("div","kpis");
   kpis.forEach(k=>kwrap.appendChild(el("div","kpi",`<div class="n">${k[0]}</div><div class="l">${k[1]}</div>`)));
   root.appendChild(kwrap);
 
-  const tabs=el("div","tabs");
-  const panels=el("div");
-  const defs=[["Overview","ov"],["Coverage matrix","cov"],["Master list","mas"],["Cost comparison","cost"]];
+  const tabs=el("div","tabs"); const panels=el("div");
+  const defs=[["Overview","ov"],["Coverage matrix","cov"],["Master list","mas"]];
   defs.forEach((t,i)=>{
-    const tb=el("div","tab"+(i===0?" active":""),t[0]); tb.dataset.t=t[1];
+    const tb=el("div","tab"+(i===0?" active":""),t[0]);
     tb.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
       document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
       tb.classList.add("active"); document.getElementById("p-"+t[1]).classList.add("active");};
@@ -251,9 +260,7 @@ function render(d, costBlocks){
       </div>
       <div class="cov"><b>${covCats}</b> of ${d.cats.length} categories have a pick
         <div class="bar"><i style="width:${pct}%"></i></div></div>`;
-    card.querySelectorAll(".stage").forEach(st=>{
-      st.onclick=()=>openStage(d,p,st.dataset.stage);
-    });
+    card.querySelectorAll(".stage").forEach(st=>{ st.onclick=()=>openStage(d,p,st.dataset.stage); });
     cg.appendChild(card);
   });
   pov.appendChild(cg); panels.appendChild(pov);
@@ -275,10 +282,8 @@ function render(d, costBlocks){
       const any=PROJECTS.some(p=>(d.coverage[p.key][cat]||[]).length);
       if(hideEmpty&&!any) return;
       let row=`<th>${cat}</th>`;
-      PROJECTS.forEach(p=>{
-        const names=d.coverage[p.key][cat]||[];
-        row+= names.length ? `<td class="has">${names.join("<br>")}</td>` : `<td class="gap">—</td>`;
-      });
+      PROJECTS.forEach(p=>{ const names=d.coverage[p.key][cat]||[];
+        row+= names.length ? `<td class="has">${names.join("<br>")}</td>` : `<td class="gap">—</td>`; });
       tb.appendChild(el("tr",null,row));
     });
   }
@@ -315,58 +320,32 @@ function render(d, costBlocks){
   }
   drawMaster();
   ["msearch","mcat","mproj"].forEach(id=>{const e=document.getElementById(id);e.oninput=drawMaster;e.onchange=drawMaster;});
-
-  // Cost comparison — render each block's CSV as a table
-  const pcost=el("div","panel"); pcost.id="p-cost";
-  if(!costBlocks.length){ pcost.appendChild(el("div","note","No cost comparison files loaded.")); }
-  costBlocks.forEach(b=>{
-    const card=el("div","ccard");
-    let html=`<h3>${b.label}</h3><table class="ctab"><tbody>`;
-    b.rows.forEach((r,ri)=>{
-      const tag = ri===0 ? "th" : "td";
-      html+="<tr>"+r.map(c=>`<${tag}>${c===""?"":c}</${tag}>`).join("")+"</tr>";
-    });
-    html+="</tbody></table>";
-    card.innerHTML=html; pcost.appendChild(card);
-  });
-  pcost.appendChild(el("div","note","Figures read from each project's cost-comparison CSV. Rates exclude GST; blank cells mean not costed yet. Some projects compare several consultants side by side."));
-  panels.appendChild(pcost);
 }
 
 // ---- stage detail modal ----
 function flag(on,label){ return `<span class="flag ${on?'on':'off'}">${label}</span>`; }
 function openStage(d,p,stage){
   const titleMap={shortlisted:"Shortlisted",semi:"Semi-final",final:"Finalized"};
-  const subMap={
-    shortlisted:"Consultants ticked for this project in the directory",
-    semi:"Consultants advanced into the semi-final pipeline",
-    final:"Consultants marked to finalize"
-  };
+  const subMap={ shortlisted:"Consultants ticked for this project in the directory",
+    semi:"Consultants whose invitation (mail) has been sent", final:"Consultants marked to finalize" };
   let body="";
   if(stage==="shortlisted"){
-    // group by category from coverage
     const cats=d.cats.filter(c=>(d.coverage[p.key][c]||[]).length);
     if(!cats.length){ body=`<div class="mempty">No shortlisted consultants for ${p.label} yet.</div>`; }
-    else cats.forEach(c=>{
-      body+=`<div class="mcat">${c}</div>`;
-      (d.coverage[p.key][c]||[]).forEach(nm=>{
-        body+=`<div class="mrow"><span class="nm">${nm}</span></div>`;
-      });
-    });
+    else cats.forEach(c=>{ body+=`<div class="mcat">${c}</div>`;
+      (d.coverage[p.key][c]||[]).forEach(nm=>{ body+=`<div class="mrow"><span class="nm">${nm}</span></div>`; }); });
   } else {
     let rows=d.pipeline.filter(r=>r.pk===p.key);
+    if(stage==="semi") rows=rows.filter(r=>r.mail);
     if(stage==="final") rows=rows.filter(r=>r.finalize);
     if(!rows.length){
-      const why = stage==="final"
-        ? `No consultants finalized for ${p.label} yet.`
-        : `${p.label} has no entries in the semi-final pipeline yet.`;
-      body=`<div class="mempty">${why}</div>`;
+      body=`<div class="mempty">${stage==="final"?`No consultants finalized for ${p.label} yet.`:`No invitations sent for ${p.label} yet.`}</div>`;
     } else {
       rows.forEach(r=>{
         const flags = stage==="semi"
-          ? flag(r.proposal,"Proposal")+flag(r.meeting,"Meeting")+flag(r.loi,"LOI")+flag(r.finalize,"Finalize")
+          ? flag(r.mail,"Invited")+flag(r.proposal,"Proposal")+flag(r.meeting,"Meeting")+flag(r.loi,"LOI")+flag(r.finalize,"Finalize")
           : flag(r.proposal,"Proposal")+flag(r.meeting,"Meeting")+flag(r.loi,"LOI");
-        body+=`<div class="mrow"><span><span class="nm">${r.consultant}</span><div class="meta">${r.category||""}${r.by?" · via "+r.by:""}</div></span><span>${flags}</span></div>`;
+        body+=`<div class="mrow"><span><span class="nm">${r.consultant}</span><div class="meta">${r.category||""}</div></span><span>${flags}</span></div>`;
       });
     }
   }
@@ -382,18 +361,11 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
 
 async function load(){
   try{
-    const [dir,pipe]=await Promise.all([
-      fetchCSV("data/01_consultant_directory.csv"),
-      fetchCSV("data/02_semifinal_pipeline.csv"),
-    ]);
-    const costBlocks=[];
-    for(const cf of COST_FILES){
-      try{ const rows=await fetchCSV(cf.file); costBlocks.push({label:cf.label,rows}); }
-      catch(_){ /* skip a missing cost file */ }
-    }
-    render(buildModel(dir,pipe), costBlocks);
+    const [dir,pipe]=await Promise.all([fetchCSV(DIR_URL), fetchCSV(SEMI_URL)]);
+    render(buildModel(dir,pipe));
   }catch(e){
-    document.getElementById("content").innerHTML='<div class="err">Could not load data: '+(e&&e.message?e.message:e)+'</div>';
+    document.getElementById("content").innerHTML='<div class="err">Could not load the published sheet: '+
+      (e&&e.message?e.message:e)+'<br><br>Make sure both the Consultant directory and Semi-Final tabs are Published to web as CSV.</div>';
   }
 }
 load();
