@@ -375,7 +375,7 @@ function openProposalPanel(d,p){
   if(!rows.length){ body.innerHTML=`<div class="mempty">No proposals received for ${p.label} yet.</div>`; showModal(); return; }
   let compare=false; const selected=new Set(); let lockCat=null;
   function draw(){
-    let html=`<div class="cmpbar"><button class="cmpbtn" id="cmpToggle">${compare?"✕ Cancel compare":"⇄ Compare proposals"}</button>`;
+    let html=`<div class="cmpbar"><button class="cmpbtn" id="cmpToggle">${compare?"✕ Cancel compare":"⇄ Compare proposals"}</button><button class="cmpbtn" id="costBtn">₹ Costing</button>`;
     if(compare) html+=`<span class="cmphint">Tick 2+ consultants in the same category</span>`;
     html+=`</div>`;
     const cats=[...new Set(rows.map(r=>r.category))];
@@ -391,6 +391,7 @@ function openProposalPanel(d,p){
     if(compare && selected.size>=2) html+=`<div class="cmpfoot"><button class="cmpgo" id="cmpGo">Comparison of ${selected.size} consultants ▸</button></div>`;
     body.innerHTML=html;
     const t=document.getElementById("cmpToggle"); if(t) t.onclick=()=>{compare=!compare; selected.clear(); lockCat=null; draw();};
+    const cb=document.getElementById("costBtn"); if(cb) cb.onclick=()=>renderCosting(d,p,rows,draw);
     body.querySelectorAll(".cmpchk").forEach(chk=>{ chk.onchange=()=>{
       const nm=decodeURIComponent(chk.dataset.name), cat=decodeURIComponent(chk.dataset.cat);
       if(chk.checked){ selected.add(nm); lockCat=cat; } else { selected.delete(nm); if(!selected.size) lockCat=null; }
@@ -450,6 +451,21 @@ function downloadComparisonPDF(p,cat,proposals){
     didDrawPage:(dt)=>{ pdf.setFontSize(7); pdf.setTextColor(140); pdf.text(PDF_NOTE, 40, pdf.internal.pageSize.getHeight()-18, {maxWidth: pdf.internal.pageSize.getWidth()-80}); }
   });
   pdf.save(`comparison_${p.key}_${(cat||"").replace(/[^\w]+/g,"-")}.pdf`);
+}
+
+function renderCosting(d,p,rows,onBack){
+  document.getElementById("modalTitle").textContent=`${p.label} — Proposal Costing`;
+  document.getElementById("modalSub").textContent="Quoted total from each attached proposal";
+  let html=`<div class="cmpbar"><button class="cmpbtn" id="costBack">← Back</button></div>`;
+  html+=`<table class="cmptable"><thead><tr><th>Consultant</th><th>Category</th><th>Quoted total (from proposal)</th></tr></thead><tbody>`;
+  rows.forEach(r=>{
+    const pr=getProposal(r.consultant);
+    const total = pr&&pr.total ? esc(pr.total) : (pr&&pr.designFee ? esc(pr.designFee) : '<span style="color:#c8cdd6">— not parsed yet</span>');
+    html+=`<tr><td style="font-weight:600">${esc(r.consultant)}</td><td>${esc(r.category||"")}</td><td>${total}</td></tr>`;
+  });
+  html+=`</tbody></table><div class="note">Totals as quoted in each proposal (AED figures exclude tax; INR figures exclude GST). Consultants whose proposal isn't parsed yet show "—".</div>`;
+  const body=document.getElementById("modalBody"); body.innerHTML=html;
+  document.getElementById("costBack").onclick=onBack;
 }
 
 function openStage(d,p,stage){
