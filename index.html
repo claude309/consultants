@@ -91,6 +91,7 @@ table{border-collapse:collapse;width:100%;background:var(--card)}
 .cmptable th,.cmptable td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
 .cmptable thead th{background:var(--navy);color:#fff}
 .cmptable tbody th{background:#f0f3f8;color:var(--navy);white-space:nowrap}
+.cmptable tr.cmphl td,.cmptable tr.cmphl th{background:#fff7e6}
 @media(max-width:760px){.kpis{grid-template-columns:repeat(3,1fr)}}
 .cmpfield{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 3px;font-weight:700}
 .cmpgrid{display:grid;gap:12px}
@@ -405,9 +406,10 @@ const RICH_FIELDS=[
   ["Project understanding","understanding"],["Deliverables & stages","deliverables"],
   ["3D renderings","renderings"],["Design fee","designFee"],["Site supervision","supervision"],
   ["Payment terms","payment"],["Proposal validity","validity"],["Revisions","revisions"],
-  ["Key exclusions","exclusions"],["Termination / liability","termination"]
+  ["Key exclusions","exclusions"],["Termination / liability","termination"],
+  ["Negotiation levers","negotiation"],["Next plan of action","nextAction"]
 ];
-const PDF_NOTE="Extracted from each consultant's attached proposal document. AED figures are as quoted (excl. tax); INR is indicative (~1 AED = INR 23). Factual comparison, not a recommendation.";
+const PDF_NOTE="Extracted from each consultant's attached proposal document. AED figures are as quoted (excl. tax); INR quotes exclude GST; ~1 AED = INR 23 (indicative). Negotiation levers and next actions are decision-support suggestions, not directives.";
 function getProposal(name){
   const key=String(name||"").trim().toLowerCase();
   const k=Object.keys(PROPOSALS).find(x=>x.trim().toLowerCase()===key);
@@ -422,7 +424,7 @@ function renderComparison(d,p,list,cat,onBack){
   let html=`<div class="cmpbar"><button class="cmpbtn" id="cmpBack">← Back</button><button class="cmpbtn" id="cmpPdf">⬇ Download PDF</button></div>`;
   if(missing.length) html+=`<div class="cmpmissing">No parsed proposal yet for: <b>${missing.map(esc).join(", ")}</b>. Ask Claude to read and add it — those columns show "—" for now.</div>`;
   html+=`<div style="overflow:auto"><table class="cmptable"><thead><tr><th>Field</th>`+proposals.map(x=>`<th>${esc(x.name)}</th>`).join("")+`</tr></thead><tbody>`;
-  RICH_FIELDS.forEach(f=>{ html+=`<tr><th>${f[0]}</th>`+proposals.map(x=>`<td>${x.data&&x.data[f[1]]?esc(x.data[f[1]]):"—"}</td>`).join("")+`</tr>`; });
+  RICH_FIELDS.forEach(f=>{ const hl=(f[1]==="negotiation"||f[1]==="nextAction")?' class="cmphl"':''; html+=`<tr${hl}><th>${f[0]}</th>`+proposals.map(x=>`<td>${x.data&&x.data[f[1]]?esc(x.data[f[1]]):"—"}</td>`).join("")+`</tr>`; });
   html+=`</tbody></table></div><div class="note">${PDF_NOTE}</div>`;
   const body=document.getElementById("modalBody"); body.innerHTML=html;
   document.getElementById("cmpBack").onclick=onBack;
@@ -444,6 +446,7 @@ function downloadComparisonPDF(p,cat,proposals){
     headStyles:{fillColor:[31,56,100],textColor:255,fontSize:8},
     columnStyles:{0:{cellWidth:95,fontStyle:"bold",fillColor:[238,242,248],textColor:[31,56,100]}},
     margin:{left:40,right:40},
+    didParseCell:(data)=>{ const f=data.row.raw&&data.row.raw[0]; if(f==="Negotiation levers"||f==="Next plan of action"){ data.cell.styles.fillColor=[255,247,230]; } },
     didDrawPage:(dt)=>{ pdf.setFontSize(7); pdf.setTextColor(140); pdf.text(PDF_NOTE, 40, pdf.internal.pageSize.getHeight()-18, {maxWidth: pdf.internal.pageSize.getWidth()-80}); }
   });
   pdf.save(`comparison_${p.key}_${(cat||"").replace(/[^\w]+/g,"-")}.pdf`);
