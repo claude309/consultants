@@ -228,7 +228,8 @@ function buildModel(dirRows, pipeRows){
     const ci={ project:col("project"), category:col("category"), consultant:col("consultant"),
       invited:col("invitation","mail sent","recommended"), proposal:col("proposal received","proposal"),
       meeting:col("meeting"), loi:col("loi"),
-      amount:col("proposal amount","amount"), status:col("finalising","finalis","status") };
+      amount:col("proposal amount","amount"), status:col("finalising","finalis","status"),
+      remarks:col("remarks","remark") };
     const at=(r,i)=> i>=0 ? r[i] : "";
     const hasContent=v=>{const s=clean(v);return s!=="" && !["FALSE","NA","NO","-","0"].includes(s.toUpperCase());};
     let curCat="", curProj="";
@@ -245,7 +246,7 @@ function buildModel(dirRows, pipeRows){
       out.pipeline.push({project:proj,pk,category:cat,consultant:cons,mail:invited,
         proposal:proposalDone,proposalLink:proposalDone?propVal:"",
         meeting:isTrue(at(r,ci.meeting)),loi:loiDone,loiLink:loiDone?loiVal:"",finalize:loiDone,
-        amount:clean(at(r,ci.amount)),status:clean(at(r,ci.status))});
+        amount:clean(at(r,ci.amount)),status:clean(at(r,ci.status)),remarks:clean(at(r,ci.remarks))});
       if(pk){ if(invited) out.invited[pk]++; if(proposalDone) out.proposal[pk]++; if(loiDone) out.finalized[pk]++; }
     });
   }
@@ -410,6 +411,12 @@ const RICH_FIELDS=[
   ["Key exclusions","exclusions"],["Termination / liability","termination"],
   ["Negotiation levers","negotiation"],["Next plan of action","nextAction"]
 ];
+// Live fields straight from the sheet (sync with LOI/status/remarks columns)
+const LIVE_FIELDS=[
+  ["Status", x=> x.rec&&x.rec.finalize ? "Finalized (LOI on file)" : (x.rec&&x.rec.mail ? "Invitation sent" : "Shortlisted")],
+  ["Finalising status", x=> (x.rec&&x.rec.status)||"—"],
+  ["Remarks", x=> (x.rec&&x.rec.remarks)||"—"]
+];
 const PDF_NOTE="Extracted from each consultant's attached proposal document. AED figures are as quoted (excl. tax); INR quotes exclude GST; ~1 AED = INR 23 (indicative). Negotiation levers and next actions are decision-support suggestions, not directives.";
 function getProposal(name){
   const key=String(name||"").trim().toLowerCase();
@@ -422,13 +429,14 @@ function getProposal(name){
 }
 function esc(t){return String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function renderComparison(d,p,list,cat,onBack){
-  const proposals=list.map(r=>({name:r.consultant,data:getProposal(r.consultant)}));
+  const proposals=list.map(r=>({name:r.consultant,rec:r,data:getProposal(r.consultant)}));
   const missing=proposals.filter(x=>!x.data).map(x=>x.name);
   document.getElementById("modalTitle").textContent=`${p.label} · ${cat} — Comparison`;
-  document.getElementById("modalSub").textContent=`${proposals.length} consultants · from their attached proposals`;
+  document.getElementById("modalSub").textContent=`${proposals.length} consultants · live status + attached proposals`;
   let html=`<div class="cmpbar"><button class="cmpbtn" id="cmpBack">← Back</button><button class="cmpbtn" id="cmpPdf">⬇ Download PDF</button></div>`;
-  if(missing.length) html+=`<div class="cmpmissing">No parsed proposal yet for: <b>${missing.map(esc).join(", ")}</b>. Ask Claude to read and add it — those columns show "—" for now.</div>`;
+  if(missing.length) html+=`<div class="cmpmissing">No parsed proposal yet for: <b>${missing.map(esc).join(", ")}</b> — proposal rows show "—" (live status/remarks still sync).</div>`;
   html+=`<div style="overflow:auto"><table class="cmptable"><thead><tr><th>Field</th>`+proposals.map(x=>`<th>${esc(x.name)}</th>`).join("")+`</tr></thead><tbody>`;
+  LIVE_FIELDS.forEach(f=>{ html+=`<tr class="cmphl"><th>${f[0]}</th>`+proposals.map(x=>`<td>${esc(f[1](x))}</td>`).join("")+`</tr>`; });
   RICH_FIELDS.forEach(f=>{ const hl=(f[1]==="negotiation"||f[1]==="nextAction")?' class="cmphl"':''; html+=`<tr${hl}><th>${f[0]}</th>`+proposals.map(x=>`<td>${x.data&&x.data[f[1]]?esc(x.data[f[1]]):"—"}</td>`).join("")+`</tr>`; });
   html+=`</tbody></table></div><div class="note">${PDF_NOTE}</div>`;
   const body=document.getElementById("modalBody"); body.innerHTML=html;
@@ -444,14 +452,16 @@ function downloadComparisonPDF(p,cat,proposals){
   pdf.setFontSize(9); pdf.setTextColor(105,112,125);
   pdf.text(`${proposals.map(x=>x.name).join("   vs   ")}    |    generated ${new Date().toLocaleDateString("en-IN",{dateStyle:"medium"})}`,40,60);
   const head=[["Field",...proposals.map(x=>x.name)]];
-  const bodyRows=RICH_FIELDS.map(f=>[f[0],...proposals.map(x=>(x.data&&x.data[f[1]])||"— not parsed yet")]);
+  const liveRows=LIVE_FIELDS.map(f=>[f[0],...proposals.map(x=>f[1](x))]);
+  const bodyRows=liveRows.concat(RICH_FIELDS.map(f=>[f[0],...proposals.map(x=>(x.data&&x.data[f[1]])||"— not parsed yet")]));
+  const hlLabels=["Status","Finalising status","Remarks","Negotiation levers","Next plan of action"];
   pdf.autoTable({
     startY:72, head, body:bodyRows,
     styles:{fontSize:7.4,cellPadding:4,valign:"top",overflow:"linebreak",lineColor:[201,211,226],lineWidth:0.4},
     headStyles:{fillColor:[31,56,100],textColor:255,fontSize:8},
     columnStyles:{0:{cellWidth:95,fontStyle:"bold",fillColor:[238,242,248],textColor:[31,56,100]}},
     margin:{left:40,right:40},
-    didParseCell:(data)=>{ const f=data.row.raw&&data.row.raw[0]; if(f==="Negotiation levers"||f==="Next plan of action"){ data.cell.styles.fillColor=[255,247,230]; } },
+    didParseCell:(data)=>{ const f=data.row.raw&&data.row.raw[0]; if(hlLabels.includes(f)){ data.cell.styles.fillColor=[255,247,230]; } },
     didDrawPage:(dt)=>{ pdf.setFontSize(7); pdf.setTextColor(140); pdf.text(PDF_NOTE, 40, pdf.internal.pageSize.getHeight()-18, {maxWidth: pdf.internal.pageSize.getWidth()-80}); }
   });
   pdf.save(`comparison_${p.key}_${(cat||"").replace(/[^\w]+/g,"-")}.pdf`);
