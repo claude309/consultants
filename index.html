@@ -79,8 +79,30 @@ table{border-collapse:collapse;width:100%;background:var(--card)}
 .mempty{padding:24px 0;text-align:center;color:var(--muted);font-size:13px}
 .mlink{color:var(--blue);font-weight:600;font-size:12px;text-decoration:none;white-space:nowrap}
 .mlink:hover{text-decoration:underline}
+.cmpbar{display:flex;gap:8px;align-items:center;margin:4px 0 6px;flex-wrap:wrap;position:sticky;top:0;background:var(--card);padding:4px 0;z-index:2}
+.cmpbtn{cursor:pointer;border:1px solid var(--line);background:var(--chip);color:var(--navy);border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:600}
+.cmpbtn:hover{background:#e1e7f1}
+.cmphint{font-size:11.5px;color:var(--muted)}
+.cmpchk{margin-right:8px;transform:scale(1.15);vertical-align:middle;cursor:pointer}
+.cmpfoot{position:sticky;bottom:0;background:var(--card);padding:10px 0 2px;margin-top:8px;border-top:1px solid var(--line)}
+.cmpgo{width:100%;cursor:pointer;background:var(--navy);color:#fff;border:1px solid var(--navy);border-radius:8px;padding:9px 12px;font-size:13px;font-weight:700}
+.cmpgo:hover{background:#16294d}
+.cmptable{border-collapse:collapse;width:100%;font-size:12.5px}
+.cmptable th,.cmptable td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+.cmptable thead th{background:var(--navy);color:#fff}
+.cmptable tbody th{background:#f0f3f8;color:var(--navy);white-space:nowrap}
 @media(max-width:760px){.kpis{grid-template-columns:repeat(3,1fr)}}
+.cmpfield{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 3px;font-weight:700}
+.cmpgrid{display:grid;gap:12px}
+.cmpcard{border:1px solid var(--line);border-radius:9px;padding:11px 12px;background:var(--bg)}
+.cmpcard h4{margin:0 0 6px;font-size:13px;color:var(--navy)}
+.cmpcard .fld{margin:6px 0}
+.cmpcard .fld b{display:block;font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:1px}
+.cmpcard .fld span{font-size:11.5px;color:var(--ink);line-height:1.4}
+.cmpmissing{background:var(--amberbg);color:var(--amber);border:1px solid #f0dca8;border-radius:8px;padding:8px 10px;font-size:11.5px;margin:6px 0}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -109,6 +131,7 @@ table{border-collapse:collapse;width:100%;background:var(--card)}
 const PUB="https://docs.google.com/spreadsheets/d/e/2PACX-1vQrKhmQ8jNl1J4qPYPf26z83sY0IqDem_4dKk7zmO6mSCQ907WcIJcpx9829P0_uOTxT6SR_F6D_cNH/pub";
 const DIR_URL = PUB+"?gid=1496981245&single=true&output=csv";  // Consultant directory
 const SEMI_URL= PUB+"?gid=1621619574&single=true&output=csv";  // Semi-Final Consultants
+let PROPOSALS={};  // extracted proposal content, keyed by consultant name (from data/proposals.json)
 
 const PROJECTS = [
   {key:"CP-Atelier",  label:"CP-Atelier"},
@@ -203,7 +226,8 @@ function buildModel(dirRows, pipeRows){
     const col=(...keys)=>h.findIndex(x=>keys.some(k=>x.includes(k)));
     const ci={ project:col("project"), category:col("category"), consultant:col("consultant"),
       invited:col("invitation","mail sent","recommended"), proposal:col("proposal received","proposal"),
-      meeting:col("meeting"), loi:col("loi") };
+      meeting:col("meeting"), loi:col("loi"),
+      amount:col("proposal amount","amount"), status:col("finalising","finalis","status") };
     const at=(r,i)=> i>=0 ? r[i] : "";
     const hasContent=v=>{const s=clean(v);return s!=="" && !["FALSE","NA","NO","-","0"].includes(s.toUpperCase());};
     let curCat="", curProj="";
@@ -219,7 +243,8 @@ function buildModel(dirRows, pipeRows){
       const loiDone=hasContent(loiVal);                  // LOI Finalized (link/attachment) = finalized
       out.pipeline.push({project:proj,pk,category:cat,consultant:cons,mail:invited,
         proposal:proposalDone,proposalLink:proposalDone?propVal:"",
-        meeting:isTrue(at(r,ci.meeting)),loi:loiDone,loiLink:loiDone?loiVal:"",finalize:loiDone});
+        meeting:isTrue(at(r,ci.meeting)),loi:loiDone,loiLink:loiDone?loiVal:"",finalize:loiDone,
+        amount:clean(at(r,ci.amount)),status:clean(at(r,ci.status))});
       if(pk){ if(invited) out.invited[pk]++; if(proposalDone) out.proposal[pk]++; if(loiDone) out.finalized[pk]++; }
     });
   }
@@ -338,7 +363,94 @@ function linkCell(v,label){
   if(/^https?:\/\//i.test(v)) return `<a href="${v}" target="_blank" rel="noopener" class="mlink">${label} ▸</a>`;
   return `<span style="font-size:12px">${v}</span>`;
 }
+function showModal(){ document.getElementById("modal").classList.add("open"); }
+
+// ---- Proposal Received popup with compare-and-export ----
+function openProposalPanel(d,p){
+  const rows=d.pipeline.filter(r=>r.pk===p.key && r.proposal);
+  document.getElementById("modalTitle").textContent=`${p.label} — Proposal Received`;
+  document.getElementById("modalSub").textContent="Consultants who submitted a proposal. Use Compare to build a side-by-side.";
+  const body=document.getElementById("modalBody");
+  if(!rows.length){ body.innerHTML=`<div class="mempty">No proposals received for ${p.label} yet.</div>`; showModal(); return; }
+  let compare=false; const selected=new Set(); let lockCat=null;
+  function draw(){
+    let html=`<div class="cmpbar"><button class="cmpbtn" id="cmpToggle">${compare?"✕ Cancel compare":"⇄ Compare proposals"}</button>`;
+    if(compare) html+=`<span class="cmphint">Tick 2+ consultants in the same category</span>`;
+    html+=`</div>`;
+    const cats=[...new Set(rows.map(r=>r.category))];
+    cats.forEach(c=>{
+      const dim = compare && lockCat && lockCat!==c ? ' style="opacity:.4"' : '';
+      html+=`<div class="mcat"${dim}>${c||"—"}</div>`;
+      rows.filter(r=>r.category===c).forEach(r=>{
+        const chk = compare ? `<input type="checkbox" class="cmpchk" data-name="${encodeURIComponent(r.consultant)}" data-cat="${encodeURIComponent(c)}" ${selected.has(r.consultant)?"checked":""} ${(lockCat&&lockCat!==c)?"disabled":""}>` : "";
+        const amt = r.amount?`<span class="meta">₹${r.amount}</span> `:"";
+        html+=`<div class="mrow"${dim}><span>${chk}<span class="nm">${r.consultant}</span></span><span>${amt}${linkCell(r.proposalLink,"View proposal")}</span></div>`;
+      });
+    });
+    if(compare && selected.size>=2) html+=`<div class="cmpfoot"><button class="cmpgo" id="cmpGo">Comparison of ${selected.size} consultants ▸</button></div>`;
+    body.innerHTML=html;
+    const t=document.getElementById("cmpToggle"); if(t) t.onclick=()=>{compare=!compare; selected.clear(); lockCat=null; draw();};
+    body.querySelectorAll(".cmpchk").forEach(chk=>{ chk.onchange=()=>{
+      const nm=decodeURIComponent(chk.dataset.name), cat=decodeURIComponent(chk.dataset.cat);
+      if(chk.checked){ selected.add(nm); lockCat=cat; } else { selected.delete(nm); if(!selected.size) lockCat=null; }
+      draw();
+    };});
+    const go=document.getElementById("cmpGo"); if(go) go.onclick=()=>renderComparison(d,p,rows.filter(r=>selected.has(r.consultant)&&r.category===lockCat),lockCat,draw);
+  }
+  draw(); showModal();
+}
+// Rich comparison fields — pulled from each consultant's extracted proposal (data/proposals.json)
+const RICH_FIELDS=[
+  ["Firm","firm"],["Reference / date","ref"],["Disciplines / scope","disciplines"],
+  ["Project understanding","understanding"],["Deliverables & stages","deliverables"],
+  ["3D renderings","renderings"],["Design fee","designFee"],["Site supervision","supervision"],
+  ["Payment terms","payment"],["Proposal validity","validity"],["Revisions","revisions"],
+  ["Key exclusions","exclusions"],["Termination / liability","termination"]
+];
+const PDF_NOTE="Extracted from each consultant's attached proposal document. AED figures are as quoted (excl. tax); INR is indicative (~1 AED = INR 23). Factual comparison, not a recommendation.";
+function getProposal(name){
+  const key=String(name||"").trim().toLowerCase();
+  const k=Object.keys(PROPOSALS).find(x=>x.trim().toLowerCase()===key);
+  return k?PROPOSALS[k]:null;
+}
+function esc(t){return String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function renderComparison(d,p,list,cat,onBack){
+  const proposals=list.map(r=>({name:r.consultant,data:getProposal(r.consultant)}));
+  const missing=proposals.filter(x=>!x.data).map(x=>x.name);
+  document.getElementById("modalTitle").textContent=`${p.label} · ${cat} — Comparison`;
+  document.getElementById("modalSub").textContent=`${proposals.length} consultants · from their attached proposals`;
+  let html=`<div class="cmpbar"><button class="cmpbtn" id="cmpBack">← Back</button><button class="cmpbtn" id="cmpPdf">⬇ Download PDF</button></div>`;
+  if(missing.length) html+=`<div class="cmpmissing">No parsed proposal yet for: <b>${missing.map(esc).join(", ")}</b>. Ask Claude to read and add it — those columns show "—" for now.</div>`;
+  html+=`<div style="overflow:auto"><table class="cmptable"><thead><tr><th>Field</th>`+proposals.map(x=>`<th>${esc(x.name)}</th>`).join("")+`</tr></thead><tbody>`;
+  RICH_FIELDS.forEach(f=>{ html+=`<tr><th>${f[0]}</th>`+proposals.map(x=>`<td>${x.data&&x.data[f[1]]?esc(x.data[f[1]]):"—"}</td>`).join("")+`</tr>`; });
+  html+=`</tbody></table></div><div class="note">${PDF_NOTE}</div>`;
+  const body=document.getElementById("modalBody"); body.innerHTML=html;
+  document.getElementById("cmpBack").onclick=onBack;
+  document.getElementById("cmpPdf").onclick=()=>downloadComparisonPDF(p,cat,proposals);
+}
+function downloadComparisonPDF(p,cat,proposals){
+  if(!(window.jspdf&&window.jspdf.jsPDF)){ alert("PDF library still loading — try again in a moment."); return; }
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF({orientation:"landscape",unit:"pt",format:"a4"});
+  pdf.setFontSize(15); pdf.setTextColor(31,56,100);
+  pdf.text(`Proposal Comparison — ${p.label} · ${cat}`,40,42);
+  pdf.setFontSize(9); pdf.setTextColor(105,112,125);
+  pdf.text(`${proposals.map(x=>x.name).join("   vs   ")}    |    generated ${new Date().toLocaleDateString("en-IN",{dateStyle:"medium"})}`,40,60);
+  const head=[["Field",...proposals.map(x=>x.name)]];
+  const bodyRows=RICH_FIELDS.map(f=>[f[0],...proposals.map(x=>(x.data&&x.data[f[1]])||"— not parsed yet")]);
+  pdf.autoTable({
+    startY:72, head, body:bodyRows,
+    styles:{fontSize:7.4,cellPadding:4,valign:"top",overflow:"linebreak",lineColor:[201,211,226],lineWidth:0.4},
+    headStyles:{fillColor:[31,56,100],textColor:255,fontSize:8},
+    columnStyles:{0:{cellWidth:95,fontStyle:"bold",fillColor:[238,242,248],textColor:[31,56,100]}},
+    margin:{left:40,right:40},
+    didDrawPage:(dt)=>{ pdf.setFontSize(7); pdf.setTextColor(140); pdf.text(PDF_NOTE, 40, pdf.internal.pageSize.getHeight()-18, {maxWidth: pdf.internal.pageSize.getWidth()-80}); }
+  });
+  pdf.save(`comparison_${p.key}_${(cat||"").replace(/[^\w]+/g,"-")}.pdf`);
+}
+
 function openStage(d,p,stage){
+  if(stage==="proposal"){ openProposalPanel(d,p); return; }
   const titleMap={shortlisted:"Shortlisted",invited:"Invitation Sent",proposal:"Proposal Received",semi:"Semi-final",final:"Finalized"};
   const subMap={ shortlisted:"Consultants ticked for this project in the directory",
     invited:"Consultants whose invitation (mail) has been sent",
@@ -385,6 +497,7 @@ async function load(){
     const dir=await fetchCSV(DIR_URL);
     let pipe=[], semiErr=false;
     try{ pipe=await fetchCSV(SEMI_URL); }catch(_){ semiErr=true; }
+    try{ PROPOSALS=await (await fetch("data/proposals.json",{cache:"no-store"})).json(); }catch(_){ PROPOSALS={}; }
     render(buildModel(dir,pipe));
     if(semiErr){
       const n=el("div","err","Semi-Final data couldn't load — publish the <b>Semi Final Consultants</b> tab to web as CSV (or publish the Entire document). Shortlisted still shows from the Directory; Invitation Sent / Proposal Received / Semi-final / Finalized read 0 until then.");
